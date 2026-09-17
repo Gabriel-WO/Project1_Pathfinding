@@ -1,3 +1,7 @@
+# Node class file
+__author__ = "Gabriel Whangbo-Olvera"
+__date__ = "09.17.2026"
+
 # Import statements
 import pygame
 

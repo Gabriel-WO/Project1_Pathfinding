@@ -3,8 +3,8 @@ __author__ = "Gabriel Whangbo-Olvera"
 __date__ = "09.17.2026"
 
 # AI use:
-# Flint:
-# Claude:
+# Flint: https://app.flintk12.com/activities/a-pathfinding-h-26efda/sessions/6e232040-fd95-49a3-925d-f7183405e225
+# Claude: https://claude.ai/share/fbeb9794-3ba0-47ad-9207-99967765e8b8
 
 # Import statements
 import math
@@ -20,6 +20,8 @@ WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 RED = (255, 0, 0)
 GREEN = (0, 255, 0)
+BUTTON_COLOR = (211, 211, 211)
+BUTTON_HOVER_COLOR = (105, 105, 105)
 # Window settings
 WINDOW_SIZE = 600
 ANIMATION_DELAY = 20
@@ -47,15 +49,13 @@ class Pathfinding:
     def manhattan_cost(self, node, end_node):
         dr = abs(end_node.row - node.row) # x-axis difference
         dc = abs(end_node.col - node.col) # y-axis difference
-        D = 1 # Vertical/horizontal distance
-        return D * (dr + dc)
+        return dr + dc
 
     # Euclidean heuristic
     def euclidean_cost(self, node, end_node):
         dr = abs(end_node.row - node.row) # x-axis difference
         dc = abs(end_node.col - node.col) # y-axis difference
-        D = 1
-        return D * ((dr * dr) + (dc * dc))
+        return math.sqrt((dr * dr) + (dc * dc))
 
     # Calculates the step cost
     def g_cost(self, node, neighbor):
@@ -172,21 +172,37 @@ def get_grid_size():
 
     return rows, cols
 
-# Determine which heuristic to use based on user input
-def get_heuristic():
-    def ask(prompt, default):
-        raw = input(f"{prompt}").strip()
-        if not raw:
-            return default
-        try:
-            value = int(raw)
-            return value if 1 <= value <= 3 else default
-        except ValueError:
-            return default
+# Checks for button click
+def check_button_click(mouse_pos, x, y, width, height):
+     return x <= mouse_pos[0] <= x + width and y <= mouse_pos[1] <= y + height
 
-    # Prompt for heuristic
-    heuristic = ask("Choose a heuristic: \n 1: Manhattan\n 2: Euclidean\n 3: Diagonal \n", 3)
-    return heuristic
+# Prompts the user for which heuristic to use based on button click
+def get_heuristic(win):
+    font = pygame.font.SysFont(None, 24)
+    selected = None
+
+    while selected is None:
+        win.fill(WHITE)
+        prompt = font.render("Choose a heuristic:", True, BLACK)
+        win.blit(prompt, (win.get_width() // 2 - 80, win.get_height() // 2 - 150))
+        draw_button(win, pygame.font.SysFont(None, 24), "Manhattan", win.get_width() // 5, 200, 120, 100, color=None)
+        draw_button(win, pygame.font.SysFont(None, 24), "Euclidean", win.get_width() // 5 + 130, 200, 120, 100, color=None)
+        draw_button(win, pygame.font.SysFont(None, 24), "Diagonal", win.get_width() // 5 + 260, 200, 120, 100, color=None)
+        pygame.display.update()
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                mouse_pos = event.pos  # use event.pos, not pygame.mouse.get_pos()
+                if check_button_click(mouse_pos, 75, 200, 150, 200):
+                    selected = 1
+                elif check_button_click(mouse_pos, 225, 200, 150, 200):
+                    selected = 2
+                elif check_button_click(mouse_pos, 375, 200, 150, 200):
+                    selected = 3
+
+    return selected
 
 # Gets start node from user
 def get_clicked_pos(pos, cell_size):
@@ -194,6 +210,21 @@ def get_clicked_pos(pos, cell_size):
     col = x // cell_size
     row = y // cell_size
     return row, col
+
+# Draws buttons (to be selected for heuristic)
+def draw_button(win, font, text, x, y, width, height, color=None):
+    mouse_pos = pygame.mouse.get_pos()
+
+    # Check if mouse is over button
+    if x <= mouse_pos[0] <= x + width and y <= mouse_pos[1] <= y + height:
+        pygame.draw.rect(win, BUTTON_HOVER_COLOR, (x, y, width, height))
+    else:
+        pygame.draw.rect(win, BUTTON_COLOR, (x, y, width, height))
+
+    # Add text
+    text_surf = font.render(text, True, (0, 0, 0))
+    text_rect = text_surf.get_rect(center=(x + width // 2, y + height // 2))
+    win.blit(text_surf, text_rect)
 
 # Draws the nodes
 def draw(win, grid):
@@ -208,7 +239,6 @@ def draw(win, grid):
 def main():
     print("Set up the grid (default is 20 x 20)")
     rows, cols = get_grid_size()
-    heuristic = get_heuristic()
     cell_size = WINDOW_SIZE // max(rows, cols)
     width = cols * cell_size
     height = rows * cell_size
@@ -228,7 +258,7 @@ def main():
     print("Left-click: place start, then end, then obstacles.")
     print("Right-click: erase a cell.")
     print("SPACE: run the animation once start and end are set.")
-    print("R: reset the grid. ESC: quit.")
+    print("R: reset the grid. C: only reset the heuristic. ESC: quit.")
 
     while running:
         draw(win, grid)
@@ -237,6 +267,7 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
 
+            # Select the start, end, and obstacle nodes
             elif event.type == pygame.MOUSEBUTTONDOWN and not algorithm_done:
                 row, col = get_clicked_pos(pygame.mouse.get_pos(), cell_size)
                 if not (0 <= row < rows and 0 <= col < cols):
@@ -245,13 +276,13 @@ def main():
 
                 if event.button == 1:  # left click
                     if not start_node and node is not end_node:
-                        start_node = node
+                        start_node = node # First the start node
                         node.make_start()
                     elif not end_node and node is not start_node:
-                        end_node = node
+                        end_node = node # Second the end node
                         node.make_end()
                     elif node is not start_node and node is not end_node:
-                        node.make_obstacle()
+                        node.make_obstacle() # Lastly obstacles
 
                 elif event.button == 3:  # right click - erase
                     if node is start_node:
@@ -260,18 +291,30 @@ def main():
                         end_node = None
                     node.reset()
 
+            # End if the user clicks ESC
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     running = False
 
+                # Reset the entire grid
                 elif event.key == pygame.K_r:
                     grid.reset()
                     start_node = None
                     end_node = None
                     algorithm_done = False
 
+                # Reset but keep start, end, and obstacle nodes
+                elif event.key == pygame.K_c:
+                    for row in grid.cells:
+                        for node in row:
+                            if not node.is_obstacle and not node.is_start and not node.is_end:
+                                node.color = WHITE
+                    algorithm_done = False
+
+                # Ask for heuristic and run A*
                 elif event.key == pygame.K_SPACE and not algorithm_done:
                     if start_node and end_node:
+                        heuristic = get_heuristic(win) # Ask for which heuristic
                         grid.update_neighbors()  # pick up any obstacles placed after creation
                         pathfinder = Pathfinding(grid)
                         path = pathfinder.a_star(
@@ -279,10 +322,13 @@ def main():
                             draw_callback=lambda: draw(win, grid)
                         )
                         algorithm_done = True
+                        explored_nodes = len(pathfinder.closed_list)
+                        print(f"Heuristic: {heuristic}: {explored_nodes} nodes explored")
                         if not path:
                             print("No path exists.")
                         else:
-                            print(f"Path found, length {len(path)}.")
+                            path_cost = pathfinder.g_score[end_node]
+                            print(f"Path found: length {len(path)} nodes, cost {path_cost:.3f}.")
 
     pygame.quit()
 
